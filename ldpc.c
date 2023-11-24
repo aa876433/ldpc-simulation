@@ -3,17 +3,27 @@
 #include <stdint.h>
 #include <string.h>
 #include <assert.h>
+#include <float.h>
 #include <math.h>
 #include "ldpc.h"
 #include "awgn.h"
 #include "mt_random.h"
 #include "read_parity.h"
 
+typedef void (*DECODE_ALGORITHM)(const double *received, uint8_t *decode_data, uint32_t iter);
+
 typedef struct SPARSE_INFO_T_
 {
     uint32_t len;
     uint32_t pos[0];
 } SPARSE_INFO_T;
+
+typedef struct MIN_SUM_INFO_T_
+{
+    double first_min;
+    double second_min;
+    int sign;
+} MIN_SUM_INFO_T;
 
 typedef struct LDPC_INFO_T_
 {
@@ -25,18 +35,23 @@ typedef struct LDPC_INFO_T_
     uint32_t parity_len;
     uint32_t codeword_len;
     double code_rate;
+    DECODE_ALGORITHM dec_algorithm[MAX_ALGORITHM];
 } LDPC_INFO_T;
+
+void spa_algorithm(const double *received, uint8_t *decode_data, uint32_t iter);
+
+void ms_algorithm(const double *received, uint8_t *decode_data, uint32_t iter);
 
 static LDPC_INFO_T g_ldpc;
 
-double sgn(double x)
+inline int sgn(double x)
 {
     if (x < 0) return -1;
     if (x > 0) return 1;
     return 0;
 }
 
-double stable_atanh(double t)
+inline double stable_atanh(double t)
 {
     double epsilon = 1e-12;
     if (t > 1 - epsilon)
@@ -254,6 +269,10 @@ void ldpc_init(void *info)
     init_parity_matrix(parity_info);
     init_sparse_info(parity_info);
     init_cv_matrix();
+    g_ldpc.dec_algorithm[SPA_ALGORITHM] = spa_algorithm;
+    g_ldpc.dec_algorithm[MS_ALGORITHM] = ms_algorithm;
+
+    printf("%d, %d, %d, %.3f\n", g_ldpc.parity_len, g_ldpc.data_len, g_ldpc.codeword_len, g_ldpc.code_rate);
 }
 
 void gen_random_data(uint8_t *data)
@@ -283,7 +302,7 @@ void ldpc_encode(const uint8_t *data, uint8_t *code_word)
     }
 }
 
-void ldpc_check_codeword(uint8_t *code_word)
+void ldpc_check_codeword(const uint8_t *code_word)
 {
     uint32_t xor;
     uint32_t pos;
@@ -319,7 +338,7 @@ void ldpc_received(const uint8_t *code_word, double *received, double snr_db)
     }
 }
 
-void ldpc_decode(uint8_t *decode_data, const double *received, uint32_t iter, DECODE_METHOD method)
+void spa_algorithm(const double *received, uint8_t *decode_data, uint32_t iter)
 {
     uint32_t pos;
     double product, lambda;
@@ -372,10 +391,85 @@ void ldpc_decode(uint8_t *decode_data, const double *received, uint32_t iter, DE
     free(check_node);
 }
 
+void ms_algorithm(const double *received, uint8_t *decode_data, uint32_t iter)
+{
+    uint32_t pos;
+    int sign;
+    double lambda, abs_lambda, fm, sm;
+    SPARSE_INFO_T **sr = g_ldpc.sparse_row;
+    double **cv_matrix = g_ldpc.cv_matrix;
+    double *var_node = malloc(g_ldpc.codeword_len * sizeof(double));
+    double *var_node_temp = malloc(g_ldpc.codeword_len * sizeof(double));
+    MIN_SUM_INFO_T *check_node = malloc(g_ldpc.parity_len * sizeof(MIN_SUM_INFO_T));
+
+    memset(var_node, 0, g_ldpc.codeword_len * sizeof(double));
+    reset_cv_matrix();
+
+    for (uint32_t it = 0; it < iter; it++)
+    {
+        for (uint32_t c_i = 0; c_i < g_ldpc.parity_len; c_i++)
+        {
+            fm = DBL_MAX;
+            sm = DBL_MAX;
+            sign = 1;
+            for (uint32_t v_i = 0; v_i < sr[c_i]->len; v_i++)
+            {
+                pos = sr[c_i]->pos[v_i];
+                lambda = received[pos] + var_node[pos] - cv_matrix[c_i][v_i];
+                abs_lambda = fabs(lambda);
+                if (abs_lambda < fm)
+                {
+                    sm = fm;
+                    fm = abs_lambda;
+                }
+                else if (abs_lambda < sm)
+                {
+                    sm = abs_lambda;
+                }
+                sign *= sgn(lambda);
+            }
+
+            check_node[c_i] = (MIN_SUM_INFO_T) {fm, sm, sign};
+        }
+
+        memset(var_node_temp, 0, g_ldpc.codeword_len * sizeof(double));
+
+        for (uint32_t c_i = 0; c_i < g_ldpc.parity_len; c_i++)
+        {
+            for (uint32_t v_i = 0; v_i < sr[c_i]->len; v_i++)
+            {
+                pos = sr[c_i]->pos[v_i];
+                lambda = received[pos] + var_node[pos] - cv_matrix[c_i][v_i];
+                abs_lambda = fabs(lambda);
+                cv_matrix[c_i][v_i] = (check_node[c_i].sign * sgn(lambda)) *
+                                      (abs_lambda == check_node[c_i].first_min ? check_node[c_i].second_min
+                                                                               : check_node[c_i].first_min);
+                var_node_temp[pos] += cv_matrix[c_i][v_i];
+            }
+        }
+
+        memcpy(var_node, var_node_temp, g_ldpc.codeword_len * sizeof(double));
+    }
+
+    for (uint32_t i = 0; i < g_ldpc.data_len; i++)
+    {
+        decode_data[i] = (received[i] + var_node[i]) > 0 ? 0 : 1;
+    }
+
+    free(var_node);
+    free(var_node_temp);
+    free(check_node);
+}
+
+void ldpc_decode(const double *received, uint8_t *decode_data, uint32_t iter, DECODE_METHOD method)
+{
+    g_ldpc.dec_algorithm[method](received, decode_data, iter);
+}
+
 double ldpc_simulation(double snr_db, uint32_t iter, DECODE_METHOD method)
 {
-    double bit_error_rate = 0;
-    uint32_t times = 100;
+    double bit_error_rate;
+    uint32_t times = 200;
     uint32_t error_cnt = 0;
     uint8_t *data = malloc(g_ldpc.data_len * sizeof(uint8_t));
     uint8_t *code_word = malloc(g_ldpc.codeword_len * sizeof(uint8_t));
@@ -387,7 +481,7 @@ double ldpc_simulation(double snr_db, uint32_t iter, DECODE_METHOD method)
         gen_random_data(data);
         ldpc_encode(data, code_word);
         ldpc_received(code_word, received, snr_db);
-        ldpc_decode(decode_data, received, iter, method);
+        ldpc_decode(received, decode_data, iter, method);
 
         for (uint32_t j = 0; j < g_ldpc.data_len; j++)
         {
@@ -416,5 +510,4 @@ void ldpc_release(void)
     free(g_ldpc.sparse_row);
     free(g_ldpc.sparse_gen);
     free(g_ldpc.cv_matrix);
-
 }

@@ -12,15 +12,15 @@ int main()
 {
     srand(time(NULL));
     init_gen_rand(rand());
-    PARITY_INFO_T *parity_info = get_parity_matrix_info("parity_matrix.txt");
+    PARITY_INFO_T *parity_info = get_parity_matrix_info("h.txt");
     ldpc_init(parity_info);
     clock_t start, end;
 
-    for (uint32_t i = 14; i <= 20; i += 2)
+    for (uint32_t i = 40; i <= 42; i += 2)
     {
         double snr_db = (i / 10.0);
         start = clock();
-        double error_rate = ldpc_simulation(snr_db, 20, SPA_ALGORITHM);
+        double error_rate = ldpc_simulation(snr_db, 60, MS_ALGORITHM);
         end = clock();
         printf("%.2f: %f, %f s\n", snr_db, error_rate, ((double)(end - start) / CLOCKS_PER_SEC));
     }
