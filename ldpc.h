@@ -6,6 +6,7 @@
 typedef enum DECODE_METHOD_ {
     SPA_ALGORITHM,
     MS_ALGORITHM,
+    MAX_ALGORITHM
 } DECODE_METHOD;
 
 void ldpc_init(void *parity_info);
