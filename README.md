@@ -1,2 +1,2 @@
-# ldpc-spa
-LDPC sum product algorithm
+# ldpc-simulation
+Support sum product algorithm and min sum algorithm.
