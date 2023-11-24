@@ -15,14 +15,15 @@ int main()
     PARITY_INFO_T *parity_info = get_parity_matrix_info("h.txt");
     ldpc_init(parity_info);
     clock_t start, end;
+    uint32_t early_termination = 1;
 
-    for (uint32_t i = 40; i <= 42; i += 2)
+    for (uint32_t i = 42; i <= 46; i += 2)
     {
         double snr_db = (i / 10.0);
         start = clock();
-        double error_rate = ldpc_simulation(snr_db, 60, MS_ALGORITHM);
+        ERROR_RATE_T error_rate = ldpc_simulation(snr_db, 60, early_termination, MS_ALGORITHM);
         end = clock();
-        printf("%.2f: %f, %f s\n", snr_db, error_rate, ((double)(end - start) / CLOCKS_PER_SEC));
+        printf("%.2f: %f, %f, %f s\n", snr_db, error_rate.bit_error_rate, error_rate.block_error_rate, ((double)(end - start) / CLOCKS_PER_SEC));
     }
 
     ldpc_release();

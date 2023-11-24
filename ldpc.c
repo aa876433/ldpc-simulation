@@ -34,6 +34,7 @@ typedef struct LDPC_INFO_T_
     uint32_t data_len;
     uint32_t parity_len;
     uint32_t codeword_len;
+    uint32_t early_term;
     double code_rate;
     DECODE_ALGORITHM dec_algorithm[MAX_ALGORITHM];
 } LDPC_INFO_T;
@@ -302,21 +303,25 @@ void ldpc_encode(const uint8_t *data, uint8_t *code_word)
     }
 }
 
-void ldpc_check_codeword(const uint8_t *code_word)
+int ldpc_check_codeword(const uint8_t *code_word)
 {
     uint32_t xor;
-    uint32_t pos;
     SPARSE_INFO_T **sr = g_ldpc.sparse_row;
     for (uint32_t i = 0; i < g_ldpc.parity_len; i++)
     {
         xor = 0;
         for (uint32_t j = 0; j < sr[i]->len; j++)
         {
-            pos = sr[i]->pos[j];
-            xor ^= code_word[pos];
+            xor ^= code_word[sr[i]->pos[j]];
         }
-        assert(xor == 0);
+
+        if (xor)
+        {
+            return 0;
+        }
     }
+
+    return 1;
 }
 
 void ldpc_received(const uint8_t *code_word, double *received, double snr_db)
@@ -379,13 +384,31 @@ void spa_algorithm(const double *received, uint8_t *decode_data, uint32_t iter)
         }
 
         memcpy(var_node, var_node_temp, g_ldpc.codeword_len * sizeof(double));
+
+        if (g_ldpc.early_term)
+        {
+            for (uint32_t i = 0; i < g_ldpc.codeword_len; i++)
+            {
+                decode_data[i] = (received[i] + var_node[i]) > 0 ? 0 : 1;
+            }
+
+            if (ldpc_check_codeword(decode_data))
+            {
+                goto EXIT;
+            }
+        }
+
     }
 
-    for (uint32_t i = 0; i < g_ldpc.data_len; i++)
+    if (!g_ldpc.early_term)
     {
-        decode_data[i] = (received[i] + var_node[i]) > 0 ? 0 : 1;
+        for (uint32_t i = 0; i < g_ldpc.data_len; i++)
+        {
+            decode_data[i] = (received[i] + var_node[i]) > 0 ? 0 : 1;
+        }
     }
 
+    EXIT:
     free(var_node);
     free(var_node_temp);
     free(check_node);
@@ -449,13 +472,30 @@ void ms_algorithm(const double *received, uint8_t *decode_data, uint32_t iter)
         }
 
         memcpy(var_node, var_node_temp, g_ldpc.codeword_len * sizeof(double));
+
+        if (g_ldpc.early_term)
+        {
+            for (uint32_t i = 0; i < g_ldpc.codeword_len; i++)
+            {
+                decode_data[i] = (received[i] + var_node[i]) > 0 ? 0 : 1;
+            }
+
+            if (ldpc_check_codeword(decode_data))
+            {
+                goto EXIT;
+            }
+        }
     }
 
-    for (uint32_t i = 0; i < g_ldpc.data_len; i++)
+    if (!g_ldpc.early_term)
     {
-        decode_data[i] = (received[i] + var_node[i]) > 0 ? 0 : 1;
+        for (uint32_t i = 0; i < g_ldpc.data_len; i++)
+        {
+            decode_data[i] = (received[i] + var_node[i]) > 0 ? 0 : 1;
+        }
     }
 
+    EXIT:
     free(var_node);
     free(var_node_temp);
     free(check_node);
@@ -466,15 +506,18 @@ void ldpc_decode(const double *received, uint8_t *decode_data, uint32_t iter, DE
     g_ldpc.dec_algorithm[method](received, decode_data, iter);
 }
 
-double ldpc_simulation(double snr_db, uint32_t iter, DECODE_METHOD method)
+ERROR_RATE_T ldpc_simulation(double snr_db, uint32_t iter, uint32_t early_termination, DECODE_METHOD method)
 {
-    double bit_error_rate;
+    ERROR_RATE_T error_rate;
     uint32_t times = 200;
     uint32_t error_cnt = 0;
+    uint32_t block_err_cnt = 0;
+    uint32_t tmp;
     uint8_t *data = malloc(g_ldpc.data_len * sizeof(uint8_t));
     uint8_t *code_word = malloc(g_ldpc.codeword_len * sizeof(uint8_t));
-    uint8_t *decode_data = malloc(g_ldpc.data_len * sizeof(uint8_t));
+    uint8_t *decode_data = malloc(g_ldpc.codeword_len * sizeof(uint8_t));
     double *received = malloc(g_ldpc.codeword_len * sizeof(double));
+    g_ldpc.early_term = early_termination;
 
     for (uint32_t i = 0; i < times; i++)
     {
@@ -483,19 +526,25 @@ double ldpc_simulation(double snr_db, uint32_t iter, DECODE_METHOD method)
         ldpc_received(code_word, received, snr_db);
         ldpc_decode(received, decode_data, iter, method);
 
+        tmp = error_cnt;
         for (uint32_t j = 0; j < g_ldpc.data_len; j++)
         {
             error_cnt += data[j] ^ decode_data[j];
         }
+        if (error_cnt > tmp)
+        {
+            block_err_cnt++;
+        }
     }
 
-    bit_error_rate = error_cnt / (g_ldpc.data_len * times * 1.0);
+    error_rate.bit_error_rate = error_cnt / (g_ldpc.data_len * times * 1.0);
+    error_rate.block_error_rate = block_err_cnt / (times * 1.0);
 
     free(data);
     free(code_word);
     free(decode_data);
     free(received);
-    return bit_error_rate;
+    return error_rate;
 }
 
 void ldpc_release(void)
