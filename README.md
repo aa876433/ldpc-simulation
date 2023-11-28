@@ -9,7 +9,7 @@ This is a C language implementation of an LDPC (Low-Density Parity-Check) decode
 - Supports different Signal-to-Noise Ratio (SNR) settings and configurable number of decoding iterations.
 
 ## Usage
-1. **Initialize LDPC Decoder**: Referencing the H.txt format, use the ldpc_init function to initialize the decoder.
+1. **Initialize LDPC Decoder**: Referencing the H.txt format, use the `ldpc_init` function to initialize the decoder.
 2. **Set Configuration**: Set parameters such as SNR, number of iterations and decode algorithm using the `ldpc_set_config` function.
 4. **Calculate Error Rates**: Use the `ldpc_simulation` function to calculate the bit error rate and block error rate.
 
