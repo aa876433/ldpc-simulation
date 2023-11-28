@@ -90,13 +90,12 @@ PARITY_INFO_T *get_parity_matrix_info(const char *file_name)
             token = strtok(NULL, " ,");
         }
     }
-
+    
     info = malloc(sizeof(PARITY_INFO_T));
     info->blk = blk;
     info->row = row;
     info->col = col;
     info->build_matirx = (int **) malloc(row * sizeof(int *));
-    
     for (i = 0; i < row; i++)
     {
         info->build_matirx[i] = (int *) malloc(col * sizeof(int));

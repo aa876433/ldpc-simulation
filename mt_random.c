@@ -24,7 +24,7 @@ uint32_t gen_rand(void)
 {
     uint32_t y;
     static uint32_t mag01[2] = {0x0UL, MATRIX_A};
-
+    
     if (mti >= MT_N)
     {
         int kk;
@@ -37,15 +37,14 @@ uint32_t gen_rand(void)
             y = (mt[kk] & UPPER_MASK) | (mt[kk + 1] & LOWER_MASK);
             mt[kk] = mt[kk + MT_M] ^ (y >> 1) ^ mag01[y & 0x1UL];
         }
-        
         for (; kk < MT_N - 1; kk++)
         {
             y = (mt[kk] & UPPER_MASK) | (mt[kk + 1] & LOWER_MASK);
             mt[kk] = mt[kk + (MT_M - MT_N)] ^ (y >> 1) ^ mag01[y & 0x1UL];
         }
-        
         y = (mt[MT_N - 1] & UPPER_MASK) | (mt[0] & LOWER_MASK);
         mt[MT_N - 1] = mt[MT_M - 1] ^ (y >> 1) ^ mag01[y & 0x1UL];
+
         mti = 0;
     }
 
@@ -55,6 +54,5 @@ uint32_t gen_rand(void)
     y ^= (y << 7) & 0x9d2c5680UL;
     y ^= (y << 15) & 0xefc60000UL;
     y ^= (y >> 18);
-
     return y;
 }
