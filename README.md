@@ -4,7 +4,8 @@
 This is a C language implementation of an LDPC (Low-Density Parity-Check) decoder. LDPC codes are a type of error-correcting codes widely used in data communication and storage systems to improve the reliability of data transmission.
 
 ## Features
-- Supports various LDPC decoding algorithms, including SPA (Sum-Product Algorithm), Layered SPA, MS (Min-Sum Algorithm), and Layered MS Algorithm.
+- Supports flood algorithm and layer algorithm.
+- Supports spa algorithm, ms algorithm and self-correct ms algorithm.
 - Provides functions for matrix simplification, encoding, decoding, and error rate calculation.
 - Supports different Signal-to-Noise Ratio (SNR) settings and configurable number of decoding iterations.
 
