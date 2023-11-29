@@ -5,14 +5,20 @@
 
 struct LDPC_INFO_T;
 
-typedef enum DECODE_METHOD_
+typedef enum SCHEDULE_METHOD
+{
+    FLOOD_ALGORITHM,
+    LAYER_ALGORITHM,
+    MAX_SCHEDULE_METHOD,
+} SCHEDULE_METHOD;
+
+typedef enum BP_METHOD
 {
     SPA_ALGORITHM,
-    LAYERED_SPA_ALGORITHM,
     MS_ALGORITHM,
-    LAYERED_MS_ALGORITHM,
-    MAX_ALGORITHM,
-} DECODE_METHOD;
+    SC_MS_ALGORITHM,
+    MAX_BP_METHOD,
+} BP_METHOD;
 
 typedef struct ERROR_RATE_T
 {
@@ -22,9 +28,9 @@ typedef struct ERROR_RATE_T
 
 struct LDPC_INFO_T *ldpc_init(void *info);
 
-void ldpc_set_config(struct LDPC_INFO_T *p_ldpc_info, double snr_db, uint32_t max_iter, uint32_t early_term, DECODE_METHOD method);
-
-ERROR_RATE_T ldpc_simulation(struct LDPC_INFO_T *);
+void ldpc_set_cond_config(struct LDPC_INFO_T *p_ldpc_info, uint32_t iter, uint32_t early_term);
+void ldpc_set_dec_config(struct LDPC_INFO_T *p_ldpc_info, SCHEDULE_METHOD sch, BP_METHOD bp, double ms_norm_factor);
+ERROR_RATE_T ldpc_simulation(struct LDPC_INFO_T *p_ldpc_info, double snr_db, uint32_t times);
 
 void ldpc_release(struct LDPC_INFO_T *p_ldpc_info);
 

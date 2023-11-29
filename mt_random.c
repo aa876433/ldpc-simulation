@@ -3,11 +3,11 @@
 
 #define MT_N 624
 #define MT_M 397
-#define MATRIX_A 0x9908b0dfUL   
-#define UPPER_MASK 0x80000000UL 
-#define LOWER_MASK 0x7fffffffUL 
+#define MATRIX_A 0x9908b0dfUL  
+#define UPPER_MASK 0x80000000UL
+#define LOWER_MASK 0x7fffffffUL
 
-static uint32_t mt[MT_N];
+static uint32_t mt[MT_N]; 
 static int mti = MT_N + 1;
 
 void init_gen_rand(uint32_t s)
@@ -49,7 +49,6 @@ uint32_t gen_rand(void)
     }
 
     y = mt[mti++];
-
     y ^= (y >> 11);
     y ^= (y << 7) & 0x9d2c5680UL;
     y ^= (y << 15) & 0xefc60000UL;
